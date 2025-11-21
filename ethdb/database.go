@@ -155,6 +155,8 @@ func (db *LDBDatabase) Close() {
 	defer db.quitLock.Unlock()
 
 	if db.quitChan != nil {
+		// 发一个 errc 到 db 关联的 quitChan 里面
+		// 然后有需要报错的情形, 使用收到的这个 errc 报告错误
 		errc := make(chan error)
 		db.quitChan <- errc
 		if err := <-errc; err != nil {
@@ -195,6 +197,8 @@ func (db *LDBDatabase) Meter(prefix string) {
 	db.quitChan = make(chan chan error)
 	db.quitLock.Unlock()
 
+	// 这里开启了一个单独的 meter 协程, 用来
+	// 每 3s 定时统计一次数据库的总计统计指标
 	go db.meter(3 * time.Second)
 }
 
@@ -212,48 +216,69 @@ func (db *LDBDatabase) Meter(prefix string) {
 //	   3   |        570 |    1113.18458 |       0.00000 |       0.00000 |       0.00000
 func (db *LDBDatabase) meter(refresh time.Duration) {
 	// Create the counters to store current and previous values
+	// 创建双缓冲计数器（两个数组，每个3个元素）, 用于存储当前和前一次的统计值，便于计算差值
 	counters := make([][]float64, 2)
 	for i := 0; i < 2; i++ {
 		counters[i] = make([]float64, 3)
 	}
+
 	// Iterate ad infinitum and collect the stats
+	// 无限循环, 收集统计信息
 	for i := 1; ; i++ {
 		// Retrieve the database stats
+		// leveldb.stats 这个统计信息是 leveldb 包提供的
 		stats, err := db.db.GetProperty("leveldb.stats")
 		if err != nil {
 			db.log.Error("Failed to read database stats", "err", err)
 			return
 		}
+
+		// 将统计信息按照行拆分, 剔除掉前面没用的数据, 直到找到内容为 `Compactions` 的数据行
 		// Find the compaction table, skip the header
 		lines := strings.Split(stats, "\n")
 		for len(lines) > 0 && strings.TrimSpace(lines[0]) != "Compactions" {
 			lines = lines[1:]
 		}
+
 		if len(lines) <= 3 {
 			db.log.Error("Compaction table not found")
 			return
 		}
+
+		// 剔除掉头里三行的内容, 这些不是表格数据
 		lines = lines[3:]
 
 		// Iterate over all the table rows, and accumulate the entries
+		// 初始化统计 counter, 本次要使用的 counter 全部置为 0
 		for j := 0; j < len(counters[i%2]); j++ {
 			counters[i%2][j] = 0
 		}
+
+		// 遍历表格的行
 		for _, line := range lines {
+			// 分割成单元格
 			parts := strings.Split(line, "|")
 			if len(parts) != 6 {
 				break
 			}
+
+			// 跳过 Level, Tables, Size(MB) 三列
+			// 仅处理 Time(sec), Read(MB), Write(MB) 三列
 			for idx, counter := range parts[3:] {
 				value, err := strconv.ParseFloat(strings.TrimSpace(counter), 64)
 				if err != nil {
 					db.log.Error("Compaction entry parsing failed", "err", err)
 					return
 				}
+
+				// 把要统计的三个列, 数据相加, 最后是SUM(某一列)
 				counters[i%2][idx] += value
 			}
 		}
+
 		// Update all the requested meters
+		// 这段代码里面 `counters[i%2][0] - counters[(i-1)%2][0]` 是当前周期的增量
+		// 因此这是在更新 Meter 的指标, 这个指标记录的是总花费, 因此是在不断地增加
 		if db.compTimeMeter != nil {
 			db.compTimeMeter.Mark(int64((counters[i%2][0] - counters[(i-1)%2][0]) * 1000 * 1000 * 1000))
 		}
@@ -263,6 +288,7 @@ func (db *LDBDatabase) meter(refresh time.Duration) {
 		if db.compWriteMeter != nil {
 			db.compWriteMeter.Mark(int64((counters[i%2][2] - counters[(i-1)%2][2]) * 1024 * 1024))
 		}
+
 		// Sleep a bit, then repeat the stats collection
 		select {
 		case errc := <-db.quitChan:
@@ -282,24 +308,28 @@ func (db *LDBDatabase) NewBatch() Batch {
 
 type ldbBatch struct {
 	db   *leveldb.DB
-	b    *leveldb.Batch
-	size int
+	b    *leveldb.Batch // LevelDB 批量操作对象
+	size int            // 批量操作中数据的总大小
 }
 
+// 将键值对添加到批量操作中
 func (b *ldbBatch) Put(key, value []byte) error {
 	b.b.Put(key, value)
 	b.size += len(value)
 	return nil
 }
 
+// 执行批量写入操作到数据库
 func (b *ldbBatch) Write() error {
 	return b.db.Write(b.b, nil)
 }
 
+// 返回批量操作中所有值的总大小
 func (b *ldbBatch) ValueSize() int {
 	return b.size
 }
 
+// table 实现了一个为所有键添加指定前缀的 Database 对象
 type table struct {
 	db     Database
 	prefix string
@@ -314,18 +344,22 @@ func NewTable(db Database, prefix string) Database {
 	}
 }
 
+// 将前缀添加到键前面后存入底层数据库
 func (dt *table) Put(key []byte, value []byte) error {
 	return dt.db.Put(append([]byte(dt.prefix), key...), value)
 }
 
+// 检查带前缀的键是否存在
 func (dt *table) Has(key []byte) (bool, error) {
 	return dt.db.Has(append([]byte(dt.prefix), key...))
 }
 
+// 获取带前缀的键对应的值
 func (dt *table) Get(key []byte) ([]byte, error) {
 	return dt.db.Get(append([]byte(dt.prefix), key...))
 }
 
+// 删除带前缀的键
 func (dt *table) Delete(key []byte) error {
 	return dt.db.Delete(append([]byte(dt.prefix), key...))
 }
@@ -334,6 +368,7 @@ func (dt *table) Close() {
 	// Do nothing; don't close the underlying DB.
 }
 
+// table 的 batch 版本
 type tableBatch struct {
 	batch  Batch
 	prefix string

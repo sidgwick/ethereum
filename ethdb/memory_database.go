@@ -23,6 +23,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// 这个文件提供了一个内存版本的 Putter/Database/Batch 实现
+
 /*
  * This is a test memory database. Do not use for any production it does not get persisted
  */

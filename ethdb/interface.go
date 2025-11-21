@@ -17,7 +17,7 @@
 package ethdb
 
 // Code using batches should try to add this much data to the batch.
-// The value was determined empirically.
+// The value was determined empirically(经验).
 const IdealBatchSize = 100 * 1024
 
 // Putter wraps the database write operation supported by both batches and regular databases.
@@ -25,7 +25,8 @@ type Putter interface {
 	Put(key []byte, value []byte) error
 }
 
-// Database wraps all database operations. All methods are safe for concurrent use.
+// Database wraps all database operations. All methods are safe for **concurrent** use.
+// LevelDB 本身并不是并发安全的, 但是 `github.com/syndtr/goleveldb` 提供了并发安全的封装
 type Database interface {
 	Putter
 	Get(key []byte) ([]byte, error)
