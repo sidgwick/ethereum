@@ -50,7 +50,7 @@ type Api struct {
 	dns Resolver
 }
 
-//the api constructor initialises
+// the api constructor initialises
 func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
 	self = &Api{
 		dpa: dpa,

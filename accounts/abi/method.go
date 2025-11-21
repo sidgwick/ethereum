@@ -160,7 +160,7 @@ func (method Method) singleUnpack(v interface{}, output []byte) error {
 //
 // Example
 //
-//     function foo(uint32 a, int b)    =    "foo(uint32,int256)"
+//	function foo(uint32 a, int b)    =    "foo(uint32,int256)"
 //
 // Please note that "int" is substitute for its canonical representation "int256"
 func (m Method) Sig() string {

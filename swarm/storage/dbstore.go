@@ -531,7 +531,8 @@ func (s *DbStore) Close() {
 	s.db.Close()
 }
 
-//  describes a section of the DbStore representing the unsynced
+//	describes a section of the DbStore representing the unsynced
+//
 // domain relevant to a peer
 // Start - Stop designate a continuous area Keys in an address space
 // typically the addresses closer to us than to the peer but not closer

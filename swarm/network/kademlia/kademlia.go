@@ -296,7 +296,7 @@ func (self *Kademlia) Suggest() (*NodeRecord, bool, int) {
 	return self.db.findBest(self.BucketSize, func(i int) int { return len(self.buckets[i]) })
 }
 
-//  adds node records to kaddb (persisted node record db)
+// adds node records to kaddb (persisted node record db)
 func (self *Kademlia) Add(nrs []*NodeRecord) {
 	self.db.add(nrs, self.proximityBin)
 }

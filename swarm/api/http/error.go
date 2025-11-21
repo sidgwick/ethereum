@@ -32,10 +32,10 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/api"
 )
 
-//templateMap holds a mapping of an HTTP error code to a template
+// templateMap holds a mapping of an HTTP error code to a template
 var templateMap map[int]*template.Template
 
-//parameters needed for formatting the correct HTML page
+// parameters needed for formatting the correct HTML page
 type ErrorParams struct {
 	Msg       string
 	Code      int
@@ -44,7 +44,7 @@ type ErrorParams struct {
 	Details   template.HTML
 }
 
-//we init the error handling right on boot time, so lookup and http response is fast
+// we init the error handling right on boot time, so lookup and http response is fast
 func init() {
 	initErrHandling()
 }
@@ -56,7 +56,7 @@ func initErrHandling() {
 	multipleChoicesPage := GetMultipleChoicesErrorPage()
 	//map the codes to the available pages
 	tnames := map[int]string{
-		0: genErrPage, //default
+		0:                              genErrPage, //default
 		http.StatusBadRequest:          genErrPage,
 		http.StatusNotFound:            notFoundPage,
 		http.StatusMultipleChoices:     multipleChoicesPage,
@@ -69,12 +69,12 @@ func initErrHandling() {
 	}
 }
 
-//ShowMultipeChoices is used when a user requests a resource in a manifest which results
-//in ambiguous results. It returns a HTML page with clickable links of each of the entry
-//in the manifest which fits the request URI ambiguity.
-//For example, if the user requests bzz:/<hash>/read and that manifest contains entries
-//"readme.md" and "readinglist.txt", a HTML page is returned with this two links.
-//This only applies if the manifest has no default entry
+// ShowMultipeChoices is used when a user requests a resource in a manifest which results
+// in ambiguous results. It returns a HTML page with clickable links of each of the entry
+// in the manifest which fits the request URI ambiguity.
+// For example, if the user requests bzz:/<hash>/read and that manifest contains entries
+// "readme.md" and "readinglist.txt", a HTML page is returned with this two links.
+// This only applies if the manifest has no default entry
 func ShowMultipleChoices(w http.ResponseWriter, r *http.Request, list api.ManifestList) {
 	msg := ""
 	if list.Entries == nil {
@@ -103,11 +103,11 @@ func ShowMultipleChoices(w http.ResponseWriter, r *http.Request, list api.Manife
 	})
 }
 
-//ShowError is used to show an HTML error page to a client.
-//If there is an `Accept` header of `application/json`, JSON will be returned instead
-//The function just takes a string message which will be displayed in the error page.
-//The code is used to evaluate which template will be displayed
-//(and return the correct HTTP status code)
+// ShowError is used to show an HTML error page to a client.
+// If there is an `Accept` header of `application/json`, JSON will be returned instead
+// The function just takes a string message which will be displayed in the error page.
+// The code is used to evaluate which template will be displayed
+// (and return the correct HTTP status code)
 func ShowError(w http.ResponseWriter, r *http.Request, msg string, code int) {
 	if code == http.StatusInternalServerError {
 		log.Error(msg)
@@ -120,7 +120,7 @@ func ShowError(w http.ResponseWriter, r *http.Request, msg string, code int) {
 	})
 }
 
-//evaluate if client accepts html or json response
+// evaluate if client accepts html or json response
 func respond(w http.ResponseWriter, r *http.Request, params *ErrorParams) {
 	w.WriteHeader(params.Code)
 	if r.Header.Get("Accept") == "application/json" {
@@ -130,7 +130,7 @@ func respond(w http.ResponseWriter, r *http.Request, params *ErrorParams) {
 	}
 }
 
-//return a HTML page
+// return a HTML page
 func respondHtml(w http.ResponseWriter, params *ErrorParams) {
 	err := params.template.Execute(w, params)
 	if err != nil {
@@ -138,13 +138,13 @@ func respondHtml(w http.ResponseWriter, params *ErrorParams) {
 	}
 }
 
-//return JSON
+// return JSON
 func respondJson(w http.ResponseWriter, params *ErrorParams) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(params)
 }
 
-//get the HTML template for a given code
+// get the HTML template for a given code
 func getTemplate(code int) *template.Template {
 	if val, tmpl := templateMap[code]; tmpl {
 		return val
